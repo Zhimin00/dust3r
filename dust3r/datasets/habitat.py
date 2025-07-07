@@ -23,7 +23,7 @@ class Habitat(BaseStereoViewDataset):
         super().__init__(*args, **kwargs)
         assert self.split is not None
         # loading list of scenes
-        with open(osp.join(self.ROOT, f'Habitat_{size}_scenes_{self.split}.txt')) as f:
+        with open(osp.join('/cis/home/zshao14/datasets', f'Habitat_{size}_scenes_{self.split}.txt')) as f:
             self.scenes = f.read().splitlines()
         self.instances = list(range(1, 5))
 
@@ -40,7 +40,12 @@ class Habitat(BaseStereoViewDataset):
         scene = self.scenes[idx]
         data_path, key = osp.split(osp.join(self.ROOT, scene))
         views = []
-        two_random_views = [0, rng.choice(self.instances)]  # view 0 is connected with all other views
+        max_view_index = 5
+        while not osp.isfile(osp.join(data_path, f"{key}_{max_view_index}.jpeg")):
+            max_view_index = max_view_index - 1
+            print('no view', max_view_index)
+        two_random_views = [0, rng.choice(list(range(1, max_view_index)))]
+        # two_random_views = [0, rng.choice(self.instances)]  # view 0 is connected with all other views
         for view_index in two_random_views:
             # load the view (and use the next one if this one's broken)
             for ii in range(view_index, view_index + 5):

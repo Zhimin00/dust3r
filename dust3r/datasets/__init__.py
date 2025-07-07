@@ -6,12 +6,18 @@ from .arkitscenes import ARKitScenes  # noqa
 from .blendedmvs import BlendedMVS  # noqa
 from .co3d import Co3d  # noqa
 from .habitat import Habitat  # noqa
-from .megadepth import MegaDepth  # noqa
+from .megadepth import MegaDepth, Aerial_MegaDepth, MegaDepth_all  # noqa
 from .scannetpp import ScanNetpp  # noqa
 from .staticthings3d import StaticThings3D  # noqa
 from .waymo import Waymo  # noqa
 from .wildrgbd import WildRGBD  # noqa
+from torch.utils.data._utils.collate import default_collate
 
+def safe_collate_fn(batch):
+    batch = [b for b in batch if b is not None]
+    if len(batch) == 0:
+        return None
+    return default_collate(batch)
 
 def get_data_loader(dataset, batch_size, num_workers=8, shuffle=True, drop_last=True, pin_mem=True):
     import torch
@@ -45,6 +51,7 @@ def get_data_loader(dataset, batch_size, num_workers=8, shuffle=True, drop_last=
         num_workers=num_workers,
         pin_memory=pin_mem,
         drop_last=drop_last,
+        collate_fn=safe_collate_fn,
     )
 
     return data_loader
