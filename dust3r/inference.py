@@ -6,10 +6,25 @@
 # --------------------------------------------------------
 import tqdm
 import torch
-from dust3r.utils.device import to_cpu, collate_with_cat
+from dust3r.utils.device import to_cpu, collate_with_cat, todevice
 from dust3r.utils.misc import invalid_to_nans
 from dust3r.utils.geometry import depthmap_to_pts3d, geotrf
+import random
 
+import numpy as np
+
+def gen_rel_pose(views, norm=True):
+    assert len(views) == 2
+    cam1_to_w, cam2_to_w = [view['camera_pose'] for view in views]
+    w_to_cam1 = np.linalg.inv(cam1_to_w)
+
+    cam2_to_cam1 = w_to_cam1 @ cam2_to_w
+
+    if norm: # normalize
+        T = cam2_to_cam1[:3,3]
+        T /= max(1e-5, np.linalg.norm(T))
+
+    return cam2_to_cam1.astype(np.float32)
 
 def _interleave_imgs(img1, img2):
     res = {}
@@ -28,6 +43,28 @@ def make_batch_symmetric(batch):
     view1, view2 = (_interleave_imgs(view1, view2), _interleave_imgs(view2, view1))
     return view1, view2
 
+def iter_views(views, device='numpy'):
+    if device:
+        views = todevice(views, device)
+    assert views['img'].ndim == 4
+    B = len(views['img'])
+    for i in range(B):
+        view = {k:(v[i] if isinstance(v, (np.ndarray,torch.Tensor)) else v) for k,v in views.items()}
+        yield view
+
+def add_relpose(view, cam2_to_world, cam1_to_world=None):
+    if cam2_to_world is not None:
+        cam1_to_world = todevice(cam1_to_world, 'numpy')
+        cam2_to_world = todevice(cam2_to_world, 'numpy')
+        def fake_views(i):
+            return [dict(camera_pose=np.eye(4) if cam1_to_world is None else cam1_to_world[i]), 
+                    dict(camera_pose=cam2_to_world[i]) ]
+        if cam2_to_world.ndim == 2:
+            known_pose = gen_rel_pose(fake_views(slice(None)))
+        else:
+            known_pose = [gen_rel_pose(fake_views(i)) for i,v in enumerate(iter_views(view))]
+            known_pose = torch.stack([todevice(k, view['img'].device) for k in known_pose])
+        view['known_pose'] = known_pose
 
 def loss_of_one_batch(batch, model, criterion, device, symmetrize_batch=False, use_amp=False, ret=None):
     view1, view2 = batch
@@ -41,6 +78,12 @@ def loss_of_one_batch(batch, model, criterion, device, symmetrize_batch=False, u
     if symmetrize_batch:
         view1, view2 = make_batch_symmetric(batch)
 
+    use_relpose = random.choice([True, False])
+    # print(use_relpose)
+    if use_relpose:
+        add_relpose(view1, cam2_to_world=view2.get('camera_pose'), cam1_to_world=view1.get('camera_pose'))
+        add_relpose(view2, cam2_to_world=view2.get('camera_pose'), cam1_to_world=view1.get('camera_pose'))
+        
     with torch.cuda.amp.autocast(enabled=bool(use_amp)):
         pred1, pred2 = model(view1, view2)
 
@@ -50,7 +93,27 @@ def loss_of_one_batch(batch, model, criterion, device, symmetrize_batch=False, u
 
     result = dict(view1=view1, view2=view2, pred1=pred1, pred2=pred2, loss=loss)
     return result[ret] if ret else result
+# def loss_of_one_batch(batch, model, criterion, device, symmetrize_batch=False, use_amp=False, ret=None):
+#     view1, view2 = batch
+#     ignore_keys = set(['depthmap', 'dataset', 'label', 'instance', 'idx', 'true_shape', 'rng'])
+#     for view in batch:
+#         for name in view.keys():  # pseudo_focal
+#             if name in ignore_keys:
+#                 continue
+#             view[name] = view[name].to(device, non_blocking=True)
 
+#     if symmetrize_batch:
+#         view1, view2 = make_batch_symmetric(batch)
+
+#     with torch.cuda.amp.autocast(enabled=bool(use_amp)):
+#         pred1, pred2 = model(view1, view2)
+
+#         # loss is supposed to be symmetric
+#         with torch.cuda.amp.autocast(enabled=False):
+#             loss = criterion(view1, view2, pred1, pred2) if criterion is not None else None
+
+#     result = dict(view1=view1, view2=view2, pred1=pred1, pred2=pred2, loss=loss)
+#     return result[ret] if ret else result
 
 @torch.no_grad()
 def inference(pairs, model, device, batch_size=8, verbose=True):

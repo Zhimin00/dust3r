@@ -129,7 +129,7 @@ def train(args):
     print(f'>> Creating train criterion = {args.train_criterion}')
     train_criterion = eval(args.train_criterion).to(device)
     print(f'>> Creating test criterion = {args.test_criterion or args.train_criterion}')
-    test_criterion = eval(args.test_criterion or args.criterion).to(device)
+    test_criterion = eval(args.test_criterion or args.train_criterion).to(device)
 
     model.to(device)
     model_without_ddp = model
@@ -149,9 +149,14 @@ def train(args):
     print("accumulate grad iterations: %d" % args.accum_iter)
     print("effective batch size: %d" % eff_batch_size)
 
+    print('Number of parameters: ', sum(p.numel() for p in model.parameters()))
+    print('trainable parameters:', sum([p.numel() for n,p in model.named_parameters() if p.requires_grad]))
+    print('trainable head1 parameters:', sum([p.numel() for n,p in model.downstream_head1.named_parameters() if p.requires_grad]))
+    print('trainable head2 parameters:', sum([p.numel() for n,p in model.downstream_head2.named_parameters() if p.requires_grad]))
+
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(
-            model, device_ids=[args.gpu], find_unused_parameters=True, static_graph=True)
+            model, device_ids=[args.gpu], find_unused_parameters=True, static_graph=False)
         model_without_ddp = model.module
 
     # following timm: set wd as 0 for bias and norm layers
