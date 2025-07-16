@@ -78,11 +78,11 @@ def loss_of_one_batch(batch, model, criterion, device, symmetrize_batch=False, u
     if symmetrize_batch:
         view1, view2 = make_batch_symmetric(batch)
 
-    use_relpose = random.choice([True, False])
-    # print(use_relpose)
-    if use_relpose:
-        add_relpose(view1, cam2_to_world=view2.get('camera_pose'), cam1_to_world=view1.get('camera_pose'))
-        add_relpose(view2, cam2_to_world=view2.get('camera_pose'), cam1_to_world=view1.get('camera_pose'))
+    # use_relpose = random.choice([True, False])
+    # # print(use_relpose)
+    # if use_relpose:
+    #     add_relpose(view1, cam2_to_world=view2.get('camera_pose'), cam1_to_world=view1.get('camera_pose'))
+    #     add_relpose(view2, cam2_to_world=view2.get('camera_pose'), cam1_to_world=view1.get('camera_pose'))
         
     with torch.cuda.amp.autocast(enabled=bool(use_amp)):
         pred1, pred2 = model(view1, view2)
