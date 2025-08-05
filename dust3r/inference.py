@@ -83,13 +83,15 @@ def loss_of_one_batch(batch, model, criterion, device, symmetrize_batch=False, u
     # if use_relpose:
     #     add_relpose(view1, cam2_to_world=view2.get('camera_pose'), cam1_to_world=view1.get('camera_pose'))
     #     add_relpose(view2, cam2_to_world=view2.get('camera_pose'), cam1_to_world=view1.get('camera_pose'))
-        
-    with torch.cuda.amp.autocast(enabled=bool(use_amp)):
-        pred1, pred2 = model(view1, view2)
+    import warnings
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=FutureWarning)
+        with torch.cuda.amp.autocast(enabled=bool(use_amp)):
+            pred1, pred2 = model(view1, view2)
 
-        # loss is supposed to be symmetric
-        with torch.cuda.amp.autocast(enabled=False):
-            loss = criterion(view1, view2, pred1, pred2) if criterion is not None else None
+            # loss is supposed to be symmetric
+            with torch.cuda.amp.autocast(enabled=False):
+                loss = criterion(view1, view2, pred1, pred2) if criterion is not None else None
 
     result = dict(view1=view1, view2=view2, pred1=pred1, pred2=pred2, loss=loss)
     return result[ret] if ret else result
@@ -211,3 +213,20 @@ def find_opt_scaling(gt_pts1, gt_pts2, pr_pts1, pr_pts2=None, fit_mode='weiszfel
     scaling = scaling.clip(min=1e-3)
     # assert scaling.isfinite().all(), bb()
     return scaling
+
+# rsync -a --progress ./arkitscenes_processed /home/jovyan/shared/zshao14/data/ &
+# rsync -a --progress ./blendedmvs_processed /home/jovyan/shared/zshao14/data/ &
+# rsync -a --progress ./co3d_processed /home/jovyan/shared/zshao14/data/ &
+# wait
+# rsync -a --progress ./habitat_processed /home/jovyan/shared/zshao14/data/ &
+# rsync -a --progress ./megadepth /home/jovyan/shared/zshao14/data/ &
+# rsync -a --progress ./megadepth_aerial_processed /home/jovyan/shared/zshao14/data/ &
+# rsync -a --progress ./scannetpp_processed /home/jovyan/shared/zshao14/data/ &
+# rsync -a --progress ./static_3d_dataset_processed /home/jovyan/shared/zshao14/data/ &
+# rsync -a --progress ./waymo_training_dataset_processed /home/jovyan/shared/zshao14/data/ &
+# rsync -a --progress ./wildrgb_processed /home/jovyan/shared/zshao14/data/ &
+# wait
+	
+   		   		
+	         
+

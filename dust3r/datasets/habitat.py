@@ -15,7 +15,7 @@ from PIL import Image
 import json
 
 from dust3r.datasets.base.base_stereo_view_dataset import BaseStereoViewDataset
-
+import pdb
 
 class Habitat(BaseStereoViewDataset):
     def __init__(self, size, *args, ROOT, **kwargs):

@@ -298,7 +298,8 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         # we use a per iteration (instead of per epoch) lr scheduler
         if data_iter_step % accum_iter == 0:
             misc.adjust_learning_rate(optimizer, epoch_f, args)
-
+        if batch is None:
+            continue
         loss_tuple = loss_of_one_batch(batch, model, criterion, device,
                                        symmetrize_batch=True,
                                        use_amp=bool(args.amp), ret='loss')
@@ -362,6 +363,8 @@ def test_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         data_loader.sampler.set_epoch(epoch)
 
     for _, batch in enumerate(metric_logger.log_every(data_loader, args.print_freq, header)):
+        if batch is None:
+            continue
         loss_tuple = loss_of_one_batch(batch, model, criterion, device,
                                        symmetrize_batch=True,
                                        use_amp=bool(args.amp), ret='loss')
