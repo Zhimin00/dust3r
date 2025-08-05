@@ -41,7 +41,7 @@ class Habitat(BaseStereoViewDataset):
         data_path, key = osp.split(osp.join(self.ROOT, scene))
         views = []
         max_view_index = 5
-        while not osp.isfile(osp.join(data_path, f"{key}_{max_view_index}.jpeg")):
+        while not osp.isfile(osp.join(data_path, f"{key}_{max_view_index}.jpeg")) and max_view_index > 1:
             max_view_index = max_view_index - 1
             print('no view', max_view_index)
         two_random_views = [0, rng.choice(list(range(1, max_view_index)))]
