@@ -23,8 +23,16 @@ class Habitat(BaseStereoViewDataset):
         super().__init__(*args, **kwargs)
         assert self.split is not None
         # loading list of scenes
-        with open(osp.join('/cis/home/zshao14/datasets', f'Habitat_{size}_scenes_{self.split}.txt')) as f:
-            self.scenes = f.read().splitlines()
+        # with open(osp.join('/cis/home/zshao14/datasets', f'Habitat_{size}_scenes_{self.split}.txt')) as f:
+        # # with open(osp.join(ROOT, f'Habitat_{size}_scenes_{self.split}.txt')) as f:
+        #     self.scenes = f.read().splitlines()
+        try:
+            with open(osp.join(ROOT, f'Habitat_{size}_scenes_{self.split}.txt')) as f:
+                self.scenes = f.read().splitlines()
+            
+        except FileNotFoundError:
+            with open(osp.join('/cis/home/zshao14/datasets', f'Habitat_{size}_scenes_{self.split}.txt')) as f:
+                self.scenes = f.read().splitlines()
         self.instances = list(range(1, 5))
 
     def filter_scene(self, label, instance=None):

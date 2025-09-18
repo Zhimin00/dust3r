@@ -6,7 +6,6 @@
 # --------------------------------------------------------
 import torch
 
-
 def fill_default_args(kwargs, func):
     import inspect  # a bit hacky but it works reliably
     signature = inspect.signature(func)

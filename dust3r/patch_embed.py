@@ -6,12 +6,13 @@
 # in particular ManyAR_PatchEmbed that Handle images with non-square aspect ratio
 # --------------------------------------------------------
 import torch
+import torch.nn as nn
 import dust3r.utils.path_to_croco  # noqa: F401
-from models.blocks import PatchEmbed  # noqa
-
+from models.blocks import PatchEmbed, to_2tuple, PositionGetter  # noqa
 
 def get_patch_embed(patch_embed_cls, img_size, patch_size, enc_embed_dim):
-    assert patch_embed_cls in ['PatchEmbedDust3R', 'ManyAR_PatchEmbed']
+    assert patch_embed_cls in ['PatchEmbedDust3R', 'ManyAR_PatchEmbed', 'ManyAR_DINOv3']
+    
     patch_embed = eval(patch_embed_cls)(img_size, patch_size, 3, enc_embed_dim)
     return patch_embed
 
@@ -21,6 +22,7 @@ class PatchEmbedDust3R(PatchEmbed):
         B, C, H, W = x.shape
         assert H % self.patch_size[0] == 0, f"Input image height ({H}) is not a multiple of patch size ({self.patch_size[0]})."
         assert W % self.patch_size[1] == 0, f"Input image width ({W}) is not a multiple of patch size ({self.patch_size[1]})."
+        
         x = self.proj(x)
         pos = self.position_getter(B, x.size(2), x.size(3), x.device)
         if self.flatten:
@@ -68,3 +70,79 @@ class ManyAR_PatchEmbed (PatchEmbed):
 
         x = self.norm(x)
         return x, pos
+
+class PatchEmbedDINOv3 (nn.Module):
+    def __init__(self, img_size=224, patch_size=16, in_chans=3, embed_dim=768, norm_layer=None, flatten=True):
+        super().__init__()
+        img_size = to_2tuple(img_size)
+        patch_size = to_2tuple(patch_size)
+        self.img_size = img_size
+        self.patch_size = patch_size
+        self.grid_size = (img_size[0] // patch_size[0], img_size[1] // patch_size[1])
+        self.num_patches = self.grid_size[0] * self.grid_size[1]
+        self.flatten = flatten
+        self.embed_dim = embed_dim
+
+        self.position_getter = PositionGetter()
+        self.dinov3 = torch.hub.load('/cis/home/zshao14/Downloads/dinov3', 'dinov3_vitl16', source='local', weights='/cis/net/r24a/data/zshao/checkpoints/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth')
+    def _init_weights(self):
+        pass
+    def forward(self, x, **kw):
+        B, C, H, W = x.shape
+        assert H % self.patch_size[0] == 0, f"Input image height ({H}) is not a multiple of patch size ({self.patch_size[0]})."
+        assert W % self.patch_size[1] == 0, f"Input image width ({W}) is not a multiple of patch size ({self.patch_size[1]})."
+        W //= self.patch_size[1]
+        H //= self.patch_size[0]
+        x = self.dinov3.get_intermediate_layers(x, n=1)[-1].float()
+        pos = self.position_getter(B, H, W, x.device)
+        return x, pos
+    
+class ManyAR_DINOv3 (nn.Module):
+    """ Handle images with non-square aspect ratio.
+        All images in the same batch have the same aspect ratio.
+        true_shape = [(height, width) ...] indicates the actual shape of each image.
+    """
+    def __init__(self, img_size=224, patch_size=16, in_chans=3, embed_dim=768, norm_layer=None, flatten=True):
+        super().__init__()
+        img_size = to_2tuple(img_size)
+        patch_size = to_2tuple(patch_size)
+        self.img_size = img_size
+        self.patch_size = patch_size
+        self.grid_size = (img_size[0] // patch_size[0], img_size[1] // patch_size[1])
+        self.num_patches = self.grid_size[0] * self.grid_size[1]
+        self.flatten = flatten
+        self.embed_dim = embed_dim
+
+        self.position_getter = PositionGetter()
+        self.dinov3 = torch.hub.load('/cis/home/zshao14/Downloads/dinov3', 'dinov3_vitl16', source='local', weights='/cis/net/r24a/data/zshao/checkpoints/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth')
+
+    def forward(self, img, true_shape):
+        B, C, H, W = img.shape
+        assert W >= H, f'img should be in landscape mode, but got {W=} {H=}'
+        assert H % self.patch_size[0] == 0, f"Input image height ({H}) is not a multiple of patch size ({self.patch_size[0]})."
+        assert W % self.patch_size[1] == 0, f"Input image width ({W}) is not a multiple of patch size ({self.patch_size[1]})."
+        assert true_shape.shape == (B, 2), f"true_shape has the wrong shape={true_shape.shape}"
+
+        # size expressed in tokens
+        W //= self.patch_size[1]
+        H //= self.patch_size[0]
+        n_tokens = H * W
+
+        height, width = true_shape.T
+        is_landscape = (width >= height)
+        is_portrait = ~is_landscape
+
+        # allocate result
+        x = img.new_zeros((B, n_tokens, self.embed_dim))
+        pos = img.new_zeros((B, n_tokens, 2), dtype=torch.int64)
+
+        # linear projection, transposed if necessary
+        x[is_landscape] = self.dinov3.get_intermediate_layers(img[is_landscape], n=1)[-1].float()
+        x[is_portrait] = self.dinov3.get_intermediate_layers(img[is_portrait].swapaxes(-1, -2), n=1)[-1].float()
+
+        pos[is_landscape] = self.position_getter(1, H, W, pos.device)
+        pos[is_portrait] = self.position_getter(1, W, H, pos.device)
+
+        return x, pos
+    def _init_weights(self):
+        pass

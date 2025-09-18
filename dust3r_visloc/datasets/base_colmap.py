@@ -22,7 +22,7 @@ from dust3r_visloc.datasets.utils import cam_to_world_from_kapture, get_resize_f
 from dust3r_visloc.datasets.base_dataset import BaseVislocDataset
 from dust3r.datasets.utils.transforms import ImgNorm
 from dust3r.utils.geometry import colmap_to_opencv_intrinsics
-
+import pdb
 KaptureSensor = collections.namedtuple('Sensor', 'sensor_params camera_params')
 
 
@@ -104,7 +104,7 @@ class BaseVislocColmapDataset(BaseVislocDataset):
         self._load_sfm(map_path)
 
         kdata_query = kapture_from_dir(query_path)
-        assert kdata_query.records_camera is not None and kdata_query.trajectories is not None
+        assert kdata_query.records_camera is not None #and kdata_query.trajectories is not None
 
         kdata_query_searchindex = {kdata_query.records_camera[(timestamp, sensor_id)]: (timestamp, sensor_id)
                                    for timestamp, sensor_id in kdata_query.records_camera.key_pairs()}
