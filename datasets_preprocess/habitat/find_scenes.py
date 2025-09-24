@@ -64,15 +64,15 @@ def find_all_scenes(habitat_root, n_scenes=[100000]):
         print(f'>> wrote {fpath}')
 
     for n in n_scenes:
-        write_scene_list(train_scenes, n, os.path.join(habitat_root, f'Habitat_{n}_scenes_train.txt'))
-        write_scene_list(val_scenes, n // 10, os.path.join(habitat_root, f'Habitat_{n//10}_scenes_val.txt'))
+        write_scene_list(train_scenes, n - n // 10, os.path.join(habitat_root, 'list', f'Habitat_{n}_scenes_train.txt'))
+        write_scene_list(val_scenes, n // 10, os.path.join(habitat_root, 'list', f'Habitat_{n//10}_scenes_val.txt'))
 
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", required=True)
-    parser.add_argument("--n_scenes", nargs='+', default=[1_000, 10_000, 100_000, 1_000_000], type=int)
+    parser.add_argument("--n_scenes", nargs='+', default=[1_000, 10_000, 100_000, 910_000], type=int)
 
     args = parser.parse_args()
     find_all_scenes(args.root, args.n_scenes)

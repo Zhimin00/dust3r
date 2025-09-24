@@ -11,7 +11,7 @@ import dust3r.utils.path_to_croco  # noqa: F401
 from models.blocks import PatchEmbed, to_2tuple, PositionGetter  # noqa
 
 def get_patch_embed(patch_embed_cls, img_size, patch_size, enc_embed_dim):
-    assert patch_embed_cls in ['PatchEmbedDust3R', 'ManyAR_PatchEmbed', 'ManyAR_DINOv3']
+    assert patch_embed_cls in ['PatchEmbedDust3R', 'ManyAR_PatchEmbed', 'PatchEmbedDINOv3', 'ManyAR_DINOv3'], patch_embed_cls
     
     patch_embed = eval(patch_embed_cls)(img_size, patch_size, 3, enc_embed_dim)
     return patch_embed
