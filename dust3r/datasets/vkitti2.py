@@ -69,8 +69,6 @@ class VirtualKITTI2(BaseStereoViewDataset):
                 num_imgs = len(basenames)
                 cut_off = (
                     self.num_views
-                    if not self.allow_repeat
-                    else max(self.num_views // 3, 3)
                 )
                 if num_imgs < cut_off:
                     print(f"Skipping {scene}")
@@ -95,6 +93,17 @@ class VirtualKITTI2(BaseStereoViewDataset):
     def __len__(self):
         return len(self.start_img_ids)
     
+    @staticmethod
+    def blockwise_shuffle(x, rng, block_shuffle):
+        if block_shuffle is None:
+            return rng.permutation(x).tolist()
+        else:
+            assert block_shuffle > 0
+            blocks = [x[i : i + block_shuffle] for i in range(0, len(x), block_shuffle)]
+            shuffled_blocks = [rng.permutation(block).tolist() for block in blocks]
+            shuffled_list = [item for block in shuffled_blocks for item in block]
+            return shuffled_list
+        
     def get_seq_from_start_id(
         self,
         num_views,
