@@ -11,6 +11,7 @@ from .scannetpp import ScanNetpp  # noqa
 from .staticthings3d import StaticThings3D  # noqa
 from .waymo import Waymo  # noqa
 from .wildrgbd import WildRGBD  # noqa
+from .vkitti2 import VirtualKITTI2  # noqa
 from torch.utils.data._utils.collate import default_collate
 
 def safe_collate_fn(batch):
