@@ -20,7 +20,7 @@ from dust3r.datasets.base.base_stereo_view_dataset import BaseStereoViewDataset
 import pdb
 
 class VirtualKITTI2(BaseStereoViewDataset):
-    def __init__(self, size, *args, ROOT, **kwargs):
+    def __init__(self, *args, ROOT, **kwargs):
         self.ROOT = ROOT
         self.max_interval = 5
         super().__init__(*args, **kwargs)
