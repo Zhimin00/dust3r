@@ -19,9 +19,10 @@ from tqdm import tqdm
 from dust3r.datasets.base.base_stereo_view_dataset import BaseStereoViewDataset
 from dust3r.utils.image import imread_cv2
 import pdb
+import itertools
 
 class MapFree(BaseStereoViewDataset):
-    def __init__(self, size, *args, ROOT, **kwargs):
+    def __init__(self, *args, ROOT, **kwargs):
         self.ROOT = ROOT
         self.max_interval = 30
         super().__init__(*args, **kwargs)
@@ -176,6 +177,130 @@ class MapFree(BaseStereoViewDataset):
                     "images", data=data["images"], compression="lzf", chunks=True
                 )
 
+    def get_seq_from_start_id(
+        self,
+        num_views,
+        id_ref,
+        ids_all,
+        rng,
+        min_interval=1,
+        max_interval=25,
+        video_prob=0.5,
+        fix_interval_prob=0.5,
+        block_shuffle=None,
+    ):
+        """
+        args:
+            num_views: number of views to return
+            id_ref: the reference id (first id)
+            ids_all: all the ids
+            rng: random number generator
+            max_interval: maximum interval between two views
+        returns:
+            pos: list of positions of the views in ids_all, i.e., index for ids_all
+            is_video: True if the views are consecutive
+        """
+        assert min_interval > 0, f"min_interval should be > 0, got {min_interval}"
+        assert (
+            min_interval <= max_interval
+        ), f"min_interval should be <= max_interval, got {min_interval} and {max_interval}"
+        assert id_ref in ids_all
+        pos_ref = ids_all.index(id_ref)
+        all_possible_pos = np.arange(pos_ref, len(ids_all))
+
+        remaining_sum = len(ids_all) - 1 - pos_ref
+
+        if remaining_sum >= num_views - 1:
+            if remaining_sum == num_views - 1:
+                assert ids_all[-num_views] == id_ref
+                return [pos_ref + i for i in range(num_views)], True
+            max_interval = min(max_interval, 2 * remaining_sum // (num_views - 1))
+            intervals = [
+                rng.choice(range(min_interval, max_interval + 1))
+                for _ in range(num_views - 1)
+            ]
+
+            # if video or collection
+            if rng.random() < video_prob:
+                # if fixed interval or random
+                if rng.random() < fix_interval_prob:
+                    # regular interval
+                    fixed_interval = rng.choice(
+                        range(
+                            1,
+                            min(remaining_sum // (num_views - 1) + 1, max_interval + 1),
+                        )
+                    )
+                    intervals = [fixed_interval for _ in range(num_views - 1)]
+                is_video = True
+            else:
+                is_video = False
+
+            pos = list(itertools.accumulate([pos_ref] + intervals))
+            pos = [p for p in pos if p < len(ids_all)]
+            pos_candidates = [p for p in all_possible_pos if p not in pos]
+            pos = (
+                pos
+                + rng.choice(
+                    pos_candidates, num_views - len(pos), replace=False
+                ).tolist()
+            )
+
+            pos = (
+                sorted(pos)
+                if is_video
+                else self.blockwise_shuffle(pos, rng, block_shuffle)
+            )
+        else:
+            # assert self.allow_repeat
+            uniq_num = remaining_sum
+            new_pos_ref = rng.choice(np.arange(pos_ref + 1))
+            new_remaining_sum = len(ids_all) - 1 - new_pos_ref
+            new_max_interval = min(max_interval, new_remaining_sum // (uniq_num - 1))
+            new_intervals = [
+                rng.choice(range(1, new_max_interval + 1)) for _ in range(uniq_num - 1)
+            ]
+
+            revisit_random = rng.random()
+            video_random = rng.random()
+
+            if rng.random() < fix_interval_prob and video_random < video_prob:
+                # regular interval
+                fixed_interval = rng.choice(range(1, new_max_interval + 1))
+                new_intervals = [fixed_interval for _ in range(uniq_num - 1)]
+            pos = list(itertools.accumulate([new_pos_ref] + new_intervals))
+
+            is_video = False
+            if revisit_random < 0.5 or video_prob == 1.0:  # revisit, video / collection
+                is_video = video_random < video_prob
+                pos = (
+                    self.blockwise_shuffle(pos, rng, block_shuffle)
+                    if not is_video
+                    else pos
+                )
+                num_full_repeat = num_views // uniq_num
+                pos = (
+                    pos * num_full_repeat
+                    + pos[: num_views - len(pos) * num_full_repeat]
+                )
+            elif revisit_random < 0.9:  # random
+                pos = rng.choice(pos, num_views, replace=True)
+            else:  # ordered
+                pos = sorted(rng.choice(pos, num_views, replace=True))
+        assert len(pos) == num_views
+        return pos, is_video
+    
+    @staticmethod
+    def blockwise_shuffle(x, rng, block_shuffle):
+        if block_shuffle is None:
+            return rng.permutation(x).tolist()
+        else:
+            assert block_shuffle > 0
+            blocks = [x[i : i + block_shuffle] for i in range(0, len(x), block_shuffle)]
+            shuffled_blocks = [rng.permutation(block).tolist() for block in blocks]
+            shuffled_list = [item for block in shuffled_blocks for item in block]
+            return shuffled_list
+        
     def _get_views(self, idx, resolution, rng):
         scene = self.scenes[self.sceneids[idx]]
         if rng.random() < 0.6:

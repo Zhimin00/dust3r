@@ -13,7 +13,14 @@ from dust3r.cloud_opt.base_opt import BasePCOptimizer
 from dust3r.utils.geometry import inv, geotrf, depthmap_to_absolute_camera_coordinates
 from dust3r.cloud_opt.commons import edge_str
 from dust3r.post_process import estimate_focal_knowing_depth
+import pdb
 
+def load_intrinsics_and_pose(npz_path):
+    camera_params = np.load(npz_path)
+    K = camera_params["intrinsics"].astype(np.float32)
+    T = camera_params["cam2world"].astype(np.float32)
+    T_inv = np.linalg.inv(T)  
+    return K, T_inv
 
 class PairViewer (BasePCOptimizer):
     """
@@ -31,6 +38,24 @@ class PairViewer (BasePCOptimizer):
         self.pp = []
         rel_poses = []
         confs = []
+        # K1, T1 = load_intrinsics_and_pose('/cis/net/io99a/data/zshao/megadepth_aerial_data/megadepth_aerial_test/0015/0015_065.jpeg.npz')
+        # K2, T2 = load_intrinsics_and_pose('/cis/net/io99a/data/zshao/megadepth_aerial_data/megadepth_aerial_test/0015/4142908691_3884438815_o.jpg.jpg.npz')
+        # cam1tocam2 = T2 @ np.linalg.inv(T1)
+        # t1 = cam1tocam2[:3, 3]
+        # pdb.set_trace()
+        # cam1tocam2[:3, 3] = t1 / np.linalg.norm(t1)
+        # cam2tocam1 = T1 @ np.linalg.inv(T2)
+        # t2 = cam2tocam1[:3, 3]
+        # pdb.set_trace()
+        # cam2tocam1[:3, 3] = t2 / np.linalg.norm(t2)
+        # focal1 = K1[0,0] * 512 / 1920
+        # focal2 = K2[0,0] * 512 / 800
+        # rel_poses.append(torch.from_numpy(cam1tocam2.astype(np.float32)))
+        # rel_poses.append(torch.from_numpy(cam2tocam1.astype(np.float32)))
+        # self.focals.append(focal1)
+        # self.focals.append(focal2)
+
+
         for i in range(self.n_imgs):
             conf = float(self.conf_i[edge_str(i, 1-i)].mean() * self.conf_j[edge_str(i, 1-i)].mean())
             if self.verbose:
@@ -79,6 +104,7 @@ class PairViewer (BasePCOptimizer):
         self.depth = nn.ParameterList(self.depth)
         for p in self.parameters():
             p.requires_grad = False
+        # pdb.set_trace()
 
     def _set_depthmap(self, idx, depth, force=False):
         if self.verbose:

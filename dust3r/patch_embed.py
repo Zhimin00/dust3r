@@ -85,6 +85,9 @@ class PatchEmbedDINOv3 (nn.Module):
 
         self.position_getter = PositionGetter()
         self.dinov3 = torch.hub.load('/cis/home/zshao14/Downloads/dinov3', 'dinov3_vitl16', source='local', weights='/cis/net/r24a/data/zshao/checkpoints/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth')
+        self.dinov3.eval()
+        for p in self.dinov3.parameters():
+            p.requires_grad = False
     def _init_weights(self):
         pass
     def forward(self, x, **kw):
@@ -115,7 +118,9 @@ class ManyAR_DINOv3 (nn.Module):
 
         self.position_getter = PositionGetter()
         self.dinov3 = torch.hub.load('/cis/home/zshao14/Downloads/dinov3', 'dinov3_vitl16', source='local', weights='/cis/net/r24a/data/zshao/checkpoints/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth')
-
+        self.dinov3.eval()
+        for p in self.dinov3.parameters():
+            p.requires_grad = False
     def forward(self, img, true_shape):
         B, C, H, W = img.shape
         assert W >= H, f'img should be in landscape mode, but got {W=} {H=}'
